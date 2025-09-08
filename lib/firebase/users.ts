@@ -142,6 +142,17 @@ export async function createOrUpdateUser(userData: CreateUserData): Promise<Fire
     return await getUserByAddress(walletAddress) as FirebaseUser
   } else {
     // Create new user
-    return await createUser(userData)
+    const newUser = await createUser(userData)
+    
+    // Auto-join to Global Chat community
+    try {
+      const { autoJoinGlobalChat } = await import('./memberships')
+      await autoJoinGlobalChat(walletAddress)
+    } catch (error) {
+      console.error('Error auto-joining Global Chat:', error)
+      // Don't block user creation if auto-join fails
+    }
+    
+    return newUser
   }
 }

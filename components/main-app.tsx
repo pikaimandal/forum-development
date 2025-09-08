@@ -1,12 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { CommunitiesScreen } from "@/components/communities-screen"
 import { CommunityDetailScreen } from "@/components/community-detail-screen"
 import { ChatScreen } from "@/components/chat-screen"
 import { DiscoverScreen } from "@/components/discover-screen"
 import { ProfileScreen } from "@/components/profile-screen"
 import { BottomNavigation } from "@/components/bottom-navigation"
+import { getUserCommunities } from "@/lib/firebase"
+import { useUser } from "@/contexts/user-context"
 import type { MainScreen } from "@/types"
 import { DEFAULT_JOINED_COMMUNITIES } from "@/lib/constants"
 
@@ -18,6 +20,24 @@ export function MainApp({ onLogout }: MainAppProps) {
   const [currentScreen, setCurrentScreen] = useState<MainScreen>("communities")
   const [selectedCommunityId, setSelectedCommunityId] = useState<string>("")
   const [joinedCommunities, setJoinedCommunities] = useState<Set<string>>(new Set(DEFAULT_JOINED_COMMUNITIES))
+  const [firebaseJoinedCommunities, setFirebaseJoinedCommunities] = useState<Set<string>>(new Set())
+  const { user } = useUser()
+
+  // Load user's joined communities from Firebase
+  useEffect(() => {
+    async function loadUserCommunities() {
+      if (user?.address) {
+        try {
+          const userCommunityIds = await getUserCommunities(user.address)
+          setFirebaseJoinedCommunities(new Set(userCommunityIds))
+        } catch (error) {
+          console.error('Error loading user communities:', error)
+        }
+      }
+    }
+
+    loadUserCommunities()
+  }, [user?.address])
 
   const handleNavigateToCommunity = (communityId: string) => {
     setSelectedCommunityId(communityId)
@@ -25,11 +45,19 @@ export function MainApp({ onLogout }: MainAppProps) {
   }
 
   const handleJoinCommunity = (communityId: string) => {
+    // Update local state and Firebase state will be updated by the component
     setJoinedCommunities((prev) => new Set([...prev, communityId]))
+    setFirebaseJoinedCommunities((prev) => new Set([...prev, communityId]))
   }
 
   const handleLeaveCommunity = (communityId: string) => {
+    // Update local state and Firebase state will be updated by the component
     setJoinedCommunities((prev) => {
+      const newSet = new Set(prev)
+      newSet.delete(communityId)
+      return newSet
+    })
+    setFirebaseJoinedCommunities((prev) => {
       const newSet = new Set(prev)
       newSet.delete(communityId)
       return newSet
@@ -45,7 +73,10 @@ export function MainApp({ onLogout }: MainAppProps) {
     switch (currentScreen) {
       case "communities":
         return (
-          <CommunitiesScreen onNavigateToCommunity={handleNavigateToCommunity} joinedCommunities={joinedCommunities} />
+          <CommunitiesScreen 
+            onNavigateToCommunity={handleNavigateToCommunity} 
+            joinedCommunities={joinedCommunities} 
+          />
         )
       case "community-detail":
         return (
@@ -55,7 +86,7 @@ export function MainApp({ onLogout }: MainAppProps) {
             onJoinCommunity={handleJoinCommunity}
             onLeaveCommunity={handleLeaveCommunity}
             onEnterChat={handleEnterChat}
-            isJoined={joinedCommunities.has(selectedCommunityId)}
+            isJoined={firebaseJoinedCommunities.has(selectedCommunityId) || joinedCommunities.has(selectedCommunityId)}
           />
         )
       case "chat":

@@ -1,23 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Users, MessageCircle, Shield, CheckCircle, UserMinus, Crown, Clock, Globe, Code, Newspaper, Brain, HelpCircle, Megaphone } from "lucide-react"
-
-interface Community {
-  id: string
-  name: string
-  description: string
-  humans: number
-  color: string
-  rules: string[]
-  moderators: string[]
-  icon: React.ComponentType<{ className?: string }>
-  createdAt: string
-}
+import { getCommunityById, joinCommunity, leaveCommunity, isCommunityMember, FirebaseCommunity } from "@/lib/firebase"
+import { useUser } from "@/contexts/user-context"
+import { formatNumber } from "@/lib/utils"
 
 interface CommunityDetailScreenProps {
   communityId: string
@@ -28,109 +19,18 @@ interface CommunityDetailScreenProps {
   isJoined: boolean
 }
 
-const communityData: Record<string, Community> = {
-  "global-chat": {
-    id: "global-chat",
-    name: "Global Chat",
-    description:
-      "General discussion room for all topics and community introductions. This is the main hub where verified humans can connect, share ideas, and engage in meaningful conversations about any subject.",
-    humans: 18500,
-    color: "bg-primary",
-    icon: Globe,
-    rules: [
-      "Be respectful and kind to all community humans",
-      "No spam, self-promotion, or off-topic content",
-      "Keep discussions constructive and meaningful",
-      "Report inappropriate behavior to moderators",
-    ],
-    moderators: ["@pikai.0000"],
-    createdAt: "September 2025",
-  },
-  developer: {
-    id: "developer",
-    name: "Developer",
-    description:
-      "Technical discussions, code reviews, and development help. Share your projects, ask for advice, and collaborate with fellow developers on various programming languages and technologies.",
-    humans: 5600,
-    color: "bg-emerald-500",
-    icon: Code,
-    rules: [
-      "Share code snippets and technical resources",
-      "Help others with programming questions",
-      "No job postings without prior approval",
-      "Keep discussions technical and relevant",
-    ],
-    moderators: ["@pikai.0000"],
-    createdAt: "September 2025",
-  },
-  "world-news": {
-    id: "world-news",
-    name: "World News",
-    description:
-      "Global news, current events, and world affairs discussion. Stay informed about what's happening around the world and engage in thoughtful discussions about current events.",
-    humans: 12300,
-    color: "bg-blue-500",
-    icon: Newspaper,
-    rules: [
-      "Share credible news sources only",
-      "Maintain civil discourse on sensitive topics",
-      "No misinformation or conspiracy theories",
-      "Fact-check before sharing information",
-    ],
-    moderators: ["@pikai.0000"],
-    createdAt: "September 2025",
-  },
-  "ai-tech": {
-    id: "ai-tech",
-    name: "AI & Tech",
-    description:
-      "Artificial intelligence, technology innovations, and future trends. Explore the latest developments in AI, discuss emerging technologies, and share insights about the future of tech.",
-    humans: 8900,
-    color: "bg-purple-500",
-    icon: Brain,
-    rules: [
-      "Share AI research and tech innovations",
-      "Discuss ethical implications of technology",
-      "No fear-mongering about AI",
-      "Support claims with credible sources",
-    ],
-    moderators: ["@pikai.0000"],
-    createdAt: "September 2025",
-  },
-  qa: {
-    id: "qa",
-    name: "Q&A",
-    description:
-      "Questions, answers, and knowledge sharing from the community. Ask anything you're curious about and help others by sharing your knowledge and expertise.",
-    humans: 6700,
-    color: "bg-amber-500",
-    icon: HelpCircle,
-    rules: [
-      "Ask clear and specific questions",
-      "Provide helpful and accurate answers",
-      "Search before asking duplicate questions",
-      "Thank contributors for their help",
-    ],
-    moderators: ["@pikai.0000"],
-    createdAt: "September 2025",
-  },
-  announcements: {
-    id: "announcements",
-    name: "Announcements",
-    description:
-      "Official updates, news, and important platform announcements. Stay up to date with the latest Forum features, policy changes, and community updates.",
-    humans: 15200,
-    color: "bg-orange-500",
-    icon: Megaphone,
-    rules: [
-      "Official announcements only",
-      "Read announcements before asking questions",
-      "Provide feedback constructively",
-      "Follow new guidelines promptly",
-    ],
-    moderators: ["@pikai.0000"],
-    createdAt: "September 2025",
-  },
+// Icon mapping for communities
+const getIconForCommunity = (communityId: string): React.ComponentType<{ className?: string }> => {
+  const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+    "global-chat": Globe,
+    "developer": Code,
+    "world-news": Newspaper,
+    "ai-tech": Brain,
+    "qa": HelpCircle,
+    "announcements": Megaphone,
+  }
+  
+  return iconMap[communityId] || Globe
 }
 
 export function CommunityDetailScreen({
@@ -143,7 +43,98 @@ export function CommunityDetailScreen({
 }: CommunityDetailScreenProps) {
   const [isJoining, setIsJoining] = useState(false)
   const [isLeaving, setIsLeaving] = useState(false)
-  const community = communityData[communityId]
+  const [loading, setLoading] = useState(true)
+  const [community, setCommunity] = useState<FirebaseCommunity | null>(null)
+  const [firebaseIsJoined, setFirebaseIsJoined] = useState(false)
+  const { user } = useUser()
+
+  // Load community data and membership status from Firebase
+  useEffect(() => {
+    async function loadCommunity() {
+      try {
+        setLoading(true)
+        
+        // Load community data
+        const communityData = await getCommunityById(communityId)
+        setCommunity(communityData)
+        
+        // Check if user is a member
+        if (user?.address && communityData) {
+          const memberStatus = await isCommunityMember(user.address, communityId)
+          setFirebaseIsJoined(memberStatus)
+        }
+        
+      } catch (error) {
+        console.error('Error loading community:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadCommunity()
+  }, [communityId, user?.address])
+
+  // Handle join community
+  const handleJoin = async () => {
+    if (!user?.address || !community) return
+    
+    try {
+      setIsJoining(true)
+      await joinCommunity({
+        walletAddress: user.address,
+        communityId: community.id
+      })
+      
+      setFirebaseIsJoined(true)
+      onJoinCommunity(community.id)
+      
+      // Update member count in local state
+      setCommunity(prev => prev ? {
+        ...prev,
+        memberCount: prev.memberCount + 1
+      } : prev)
+      
+    } catch (error) {
+      console.error('Error joining community:', error)
+    } finally {
+      setIsJoining(false)
+    }
+  }
+
+  // Handle leave community
+  const handleLeave = async () => {
+    if (!user?.address || !community) return
+    
+    try {
+      setIsLeaving(true)
+      await leaveCommunity(user.address, community.id)
+      
+      setFirebaseIsJoined(false)
+      onLeaveCommunity(community.id)
+      
+      // Update member count in local state
+      setCommunity(prev => prev ? {
+        ...prev,
+        memberCount: Math.max(0, prev.memberCount - 1)
+      } : prev)
+      
+    } catch (error) {
+      console.error('Error leaving community:', error)
+    } finally {
+      setIsLeaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="h-full bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading community...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!community) {
     return (
@@ -159,13 +150,6 @@ export function CommunityDetailScreen({
     )
   }
 
-  const formatNumber = (num: number) => {
-    if (num >= 1000) {
-      return (num / 1000).toFixed(1) + "k"
-    }
-    return num.toString()
-  }
-
   const getIconTextColor = (communityId: string) => {
     if (communityId === "global-chat") {
       return "text-primary-foreground"
@@ -173,21 +157,9 @@ export function CommunityDetailScreen({
     return "text-white"
   }
 
-  const handleJoin = async () => {
-    setIsJoining(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    onJoinCommunity(communityId)
-    setIsJoining(false)
-  }
-
-  const handleLeave = async () => {
-    setIsLeaving(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    onLeaveCommunity(communityId)
-    setIsLeaving(false)
-  }
+  // Use Firebase membership status with fallback to props
+  const membershipStatus = firebaseIsJoined || isJoined
+  const CommunityIcon = getIconForCommunity(community.id)
 
   return (
     <div className="h-full bg-background flex flex-col">
@@ -206,12 +178,12 @@ export function CommunityDetailScreen({
               <div
                 className={`w-16 h-16 rounded-2xl ${community.color} flex items-center justify-center flex-shrink-0`}
               >
-                <community.icon className={`w-8 h-8 ${getIconTextColor(community.id)}`} />
+                <CommunityIcon className={`w-8 h-8 ${getIconTextColor(community.id)}`} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center space-x-2 mb-2">
                   <h2 className="text-xl font-bold text-foreground">{community.name}</h2>
-                  {isJoined && (
+                  {membershipStatus && (
                     <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
                       <CheckCircle className="w-3 h-3 mr-1" />
                       Joined
@@ -221,7 +193,7 @@ export function CommunityDetailScreen({
                 <div className="flex items-center space-x-4 text-sm text-muted-foreground mb-3">
                   <div className="flex items-center space-x-1">
                     <Users className="w-4 h-4" />
-                    <span>{formatNumber(community.humans)} humans</span>
+                    <span>{formatNumber(community.memberCount || 0)} humans</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -237,7 +209,7 @@ export function CommunityDetailScreen({
 
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         <div className="space-y-4">
-          {isJoined ? (
+          {membershipStatus ? (
             <div className="flex space-x-3">
               <Button onClick={() => onEnterChat(communityId)} size="default" className="flex-1 h-12">
                 <MessageCircle className="w-5 h-5 mr-2" />
@@ -278,7 +250,7 @@ export function CommunityDetailScreen({
               <h3 className="font-semibold text-foreground mb-3">Community Stats</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-foreground">{formatNumber(community.humans)}</div>
+                  <div className="text-2xl font-bold text-foreground">{formatNumber(community.memberCount || 0)}</div>
                   <div className="text-xs text-muted-foreground">Total Humans</div>
                 </div>
                 <div className="text-center">
@@ -298,7 +270,7 @@ export function CommunityDetailScreen({
                 <h3 className="font-semibold text-foreground">Community Guidelines</h3>
               </div>
               <div className="space-y-3">
-                {community.rules.map((rule, index) => (
+                {community.rules.map((rule: string, index: number) => (
                   <div key={index} className="flex items-start space-x-3 p-3 bg-muted/30 rounded-lg">
                     <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                       <span className="text-primary-foreground text-xs font-bold">{index + 1}</span>
@@ -348,23 +320,13 @@ export function CommunityDetailScreen({
               <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Created</span>
-                  <span className="text-foreground font-medium">{community.createdAt}</span>
+                  <span className="text-foreground font-medium">September 2025</span>
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Category</span>
                   <Badge variant="secondary" className="bg-muted text-foreground">
-                    {community.id === "developer"
-                      ? "Technology"
-                      : community.id === "world-news"
-                        ? "News"
-                        : community.id === "ai-tech"
-                          ? "Technology"
-                          : community.id === "qa"
-                            ? "Help & Support"
-                            : community.id === "announcements"
-                              ? "Official"
-                              : "General"}
+                    {community.category}
                   </Badge>
                 </div>
                 <Separator />
