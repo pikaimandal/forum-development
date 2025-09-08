@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Users, MessageCircle, Shield, CheckCircle, UserMinus, Crown, Clock, Globe, Code, Newspaper, Brain, HelpCircle, Megaphone } from "lucide-react"
-import { getCommunityById, joinCommunity, leaveCommunity, isCommunityMember, FirebaseCommunity } from "@/lib/firebase"
+import { joinCommunity, leaveCommunity, isCommunityMember } from "@/lib/firebase"
 import { useUser } from "@/contexts/user-context"
 import { formatNumber } from "@/lib/utils"
+import { DEMO_COMMUNITIES } from "@/lib/data"
 
 interface CommunityDetailScreenProps {
   communityId: string
