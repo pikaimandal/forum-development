@@ -7,6 +7,7 @@ import { LoginScreen } from "@/components/login-screen"
 import { MainApp } from "@/components/main-app"
 import { WorldAppWarning } from "@/components/world-app-warning"
 import { useUser } from "@/contexts/user-context"
+import { createOrUpdateUser } from "@/lib/firebase/users"
 import type { Screen } from "@/types"
 
 export default function ForumApp() {
@@ -47,6 +48,21 @@ export default function ForumApp() {
               if (isAuthenticated && address) {
                 // Restore user session
                 const userData = await fetchUserData(address, isOrbVerified)
+                
+                // Update Firebase with latest login
+                try {
+                  const firebaseUserData = {
+                    walletAddress: address,
+                    username: userData.username,
+                    profilePictureUrl: userData.profilePicture,
+                    isVerified: isOrbVerified,
+                  }
+                  await createOrUpdateUser(firebaseUserData)
+                  console.log('Firebase user data updated on session restore')
+                } catch (firebaseError) {
+                  console.error('Firebase update error on session restore:', firebaseError)
+                }
+                
                 setUser(userData)
               }
             }

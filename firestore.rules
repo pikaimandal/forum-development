@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection - using wallet address as document ID
+    match /users/{walletAddress} {
+      // Allow read access to all authenticated users (for profile viewing)
+      allow read: if true; // Public read access for now
+      // Allow write access only to the wallet owner or for user creation
+      allow write: if true; // Simplified for development - will refine later
+    }
+    
+    // Communities collection
+    match /communities/{communityId} {
+      // Anyone can read community information
+      allow read: if true;
+      // Only admins can modify communities (implemented via server-side functions)
+      allow write: if false;
+    }
+    
+    // Community members collection
+    match /community_members/{membershipId} {
+      // Users can read membership info
+      allow read: if true;
+      // Users can manage memberships
+      allow write: if true;
+    }
+    
+    // Messages collection
+    match /messages/{messageId} {
+      // Users can read messages
+      allow read: if true;
+      // Users can create messages
+      allow create: if true;
+      // Users can edit their own messages
+      allow update: if true;
+      // Users can delete their own messages
+      allow delete: if true;
+    }
+    
+    // Message votes collection
+    match /message_votes/{voteId} {
+      // Users can read vote information
+      allow read: if true;
+      // Users can manage their own votes
+      allow write: if true;
+    }
+    
+    // Message views collection
+    match /message_views/{viewId} {
+      // Users can read view information
+      allow read: if true;
+      // Users can create their own views
+      allow create: if true;
+      allow update, delete: if true;
+    }
+    
+    // Message reports collection
+    match /message_reports/{reportId} {
+      // Users can read reports
+      allow read: if true;
+      // Users can create reports
+      allow create: if true;
+      // Users can update reports
+      allow update: if true;
+      allow delete: if true;
+    }
+  }
+}

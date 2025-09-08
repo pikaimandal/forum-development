@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useUser } from "@/contexts/user-context"
 import { checkOrbVerification, isUserAllowed } from "@/lib/verification"
+import { createOrUpdateUser } from "@/lib/firebase/users"
 
 interface LoginScreenProps {
   onLogin: () => void
@@ -99,6 +100,25 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
       // Fetch user data and complete login
       const userData = await fetchUserData(address, isOrbVerified)
+      
+      // Store user data in Firebase
+      try {
+        console.log('Storing user data in Firebase...')
+        const firebaseUserData = {
+          walletAddress: address,
+          username: userData.username,
+          profilePictureUrl: userData.profilePicture,
+          isVerified: isOrbVerified,
+        }
+        
+        await createOrUpdateUser(firebaseUserData)
+        console.log('User data successfully stored in Firebase')
+      } catch (firebaseError) {
+        console.error('Firebase storage error:', firebaseError)
+        // Don't block login if Firebase fails, but log the error
+        setError('User data stored locally. Some features may be limited.')
+      }
+      
       setUser(userData)
 
       // Complete login
