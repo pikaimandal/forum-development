@@ -2,7 +2,7 @@
 
 ## ✅ Completed Tasks
 
-### 1. **Communities Management System**
+## 1. **Communities Management System**
 - ✅ Created `lib/firebase/communities.ts` - Complete community management service
 - ✅ Created `lib/firebase/memberships.ts` - Community membership tracking service
 - ✅ Created `lib/firebase/init.ts` - Firebase initialization with default communities
